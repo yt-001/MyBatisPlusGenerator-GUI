@@ -1,3 +1,5 @@
+package utils;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -107,18 +109,42 @@ public class TableFieldExtractor {
         List<FieldInfo> fields = new ArrayList<>();
         
         String[] lines = sql.split("\n");
+        boolean inCreateTableBlock = false;
+        
         for (String line : lines) {
             line = line.trim();
             
+            // 检测是否进入CREATE TABLE块
+            if (line.toLowerCase().startsWith("create table")) {
+                inCreateTableBlock = true;
+                continue;
+            }
+            
+            // 检测是否离开CREATE TABLE块（遇到独立的CREATE INDEX等语句）
+            if (line.toLowerCase().startsWith("create index") || 
+                line.toLowerCase().startsWith("create unique index")) {
+                inCreateTableBlock = false;
+                continue;
+            }
+            
+            // 只在CREATE TABLE块内解析字段
+            if (!inCreateTableBlock) {
+                continue;
+            }
+            
             // 跳过非字段行
             if (line.isEmpty() || 
-                line.toLowerCase().startsWith("create") ||
                 line.toLowerCase().startsWith("constraint") ||
                 line.toLowerCase().startsWith("unique") ||
                 line.toLowerCase().startsWith("primary key") ||
-                line.toLowerCase().contains("index") ||
                 line.startsWith(")") ||
                 line.startsWith("(")) {
+                continue;
+            }
+            
+            // 检测CREATE TABLE块结束（遇到以)结尾的行）
+            if (line.endsWith(");") || (line.equals(")") || line.matches("\\)\\s*comment.*"))) {
+                inCreateTableBlock = false;
                 continue;
             }
             
@@ -139,9 +165,15 @@ public class TableFieldExtractor {
         // 移除末尾的逗号
         line = line.replaceAll(",$", "").trim();
         
-        // 基本字段匹配
+        // 跳过单独的"on update"约束行，但不跳过字段定义行
+        String trimmedLower = line.toLowerCase().trim();
+        if (trimmedLower.startsWith("on update") && !trimmedLower.matches(".*\\w+_time\\s+.*")) {
+            return null;
+        }
+        
+        // 基本字段匹配 - 匹配字段名和数据类型
         Pattern pattern = Pattern.compile(
-            "^([\\w_]+)\\s+([\\w()\\s,]+?)(?:\\s+comment\\s+'([^']*)')?.*$",
+            "^\\s*([\\w_]+)\\s+([\\w()]+)(?:\\s+.*?)?(?:\\s+comment\\s+'([^']*)')?",
             Pattern.CASE_INSENSITIVE
         );
         
@@ -151,13 +183,39 @@ public class TableFieldExtractor {
             String fieldType = matcher.group(2).trim();
             String comment = matcher.group(3);
             
-            // 清理字段类型，移除多余的关键字
-            fieldType = cleanFieldType(fieldType);
-            
-            return new FieldInfo(fieldName, fieldType, comment != null ? comment : "");
+            // 验证字段名不是SQL关键字
+            if (isValidFieldName(fieldName)) {
+                // 清理字段类型，移除多余的关键字
+                fieldType = cleanFieldType(fieldType);
+                
+                return new FieldInfo(fieldName, fieldType, comment != null ? comment : "");
+            }
         }
         
         return null;
+    }
+    
+    /**
+     * 验证字段名是否有效（不是SQL关键字）
+     */
+    private static boolean isValidFieldName(String fieldName) {
+        // 过滤SQL关键字，但不过滤包含关键字的字段名（如create_time, update_time）
+        String[] sqlKeywords = {"on", "primary", "key", "constraint", "unique", "index", "foreign", "create", "table", "alter", "drop"};
+        String lowerFieldName = fieldName.toLowerCase();
+        
+        // 如果是纯关键字，则无效
+        for (String keyword : sqlKeywords) {
+            if (keyword.equals(lowerFieldName)) {
+                return false;
+            }
+        }
+        
+        // 额外检查：字段名必须是有效的标识符格式（字母开头，包含字母数字下划线）
+        if (!fieldName.matches("^[a-zA-Z][a-zA-Z0-9_]*$")) {
+            return false;
+        }
+        
+        return true;
     }
     
     /**
@@ -169,7 +227,7 @@ public class TableFieldExtractor {
     }
     
     /**
-     * 打印核心信息：表名、字段数、字段名数组
+     * 打印核心信息：表名、字段数、字段名数组、字段类型数组
      */
     public static void printCoreInfo(TableInfo tableInfo) {
         System.out.println("=== 核心信息提取结果 ===");
@@ -185,6 +243,9 @@ public class TableFieldExtractor {
             }
         }
         System.out.println("};");
+        
+        // 调用字段类型数组打印方法
+        printFieldTypes(tableInfo);
     }
     
     /**
@@ -199,40 +260,28 @@ public class TableFieldExtractor {
     }
     
     /**
-     * 主方法，用于测试SQL解析
+     * 获取字段类型数组
      */
-    public static void main(String[] args) {
-        // 示例SQL语句 - JDK 1.8兼容写法
-        String sql = "create table user_basic\n" +
-                "(\n" +
-                "    user_id        bigint auto_increment comment '用户ID，主键'\n" +
-                "        primary key,\n" +
-                "    username       varchar(32)                                                   not null comment '用户名',\n" +
-                "    password       varchar(255)                                                  not null comment '加密后的密码',\n" +
-                "    mobile         varchar(20)                                                   null comment '手机号',\n" +
-                "    email          varchar(100)                                                  null comment '邮箱',\n" +
-                "    avatar_url     varchar(255) default 'https://example.com/default_avatar.png' null comment '头像URL',\n" +
-                "    background_url varchar(255) default 'https://example.com/default_avatar.png' null comment '背景URL',\n" +
-                "    signature      varchar(50)  default '这个人很懒，什么都没留下~'               null comment '个性签名',\n" +
-                "    gender         tinyint      default 0                                        null comment '性别:0-未知,1-男,2-女',\n" +
-                "    birthday       date                                                          null comment '生日',\n" +
-                "    country        varchar(10)  default '中国'                                   null comment '国家',\n" +
-                "    province       varchar(10)                                                   null comment '省份',\n" +
-                "    city           varchar(10)                                                   null comment '城市',\n" +
-                "    status         tinyint      default 1                                        null comment '账号状态:0-禁用,1-正常,2-锁定',\n" +
-                "    is_verified    tinyint      default 0                                        null comment '是否认证:0-否,1-是',\n" +
-                "    verified_type  tinyint                                                       null comment '认证类型:1-个人,2-企业,3-机构',\n" +
-                "    create_time    datetime     default CURRENT_TIMESTAMP                        not null comment '创建时间',\n" +
-                "    update_time    datetime     default CURRENT_TIMESTAMP                        not null on update CURRENT_TIMESTAMP comment '更新时间',\n" +
-                "    constraint idx_mobile\n" +
-                "        unique (mobile),\n" +
-                "    constraint idx_username\n" +
-                "        unique (username)\n" +
-                ")\n" +
-                "    comment '用户基础信息表' collate = utf8mb4_unicode_ci;";
-
-        // 解析SQL并打印核心结果
-        TableInfo tableInfo = parseSql(sql);
-        printCoreInfo(tableInfo);
+    public static String[] getFieldTypes(TableInfo tableInfo) {
+        String[] fieldTypes = new String[tableInfo.getFields().size()];
+        for (int i = 0; i < tableInfo.getFields().size(); i++) {
+            fieldTypes[i] = tableInfo.getFields().get(i).getFieldType();
+        }
+        return fieldTypes;
+    }
+    
+    /**
+     * 打印字段类型数组信息
+     */
+    public static void printFieldTypes(TableInfo tableInfo) {
+        System.out.println("\n=== 字段类型数组 ===");
+        System.out.print("String[] fieldTypes = {");
+        for (int i = 0; i < tableInfo.getFields().size(); i++) {
+            System.out.print("\"" + tableInfo.getFields().get(i).getFieldType() + "\"");
+            if (i < tableInfo.getFields().size() - 1) {
+                System.out.print(", ");
+            }
+        }
+        System.out.println("};");
     }
 }
