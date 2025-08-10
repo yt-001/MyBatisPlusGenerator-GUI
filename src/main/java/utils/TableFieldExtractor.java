@@ -4,13 +4,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import Global.GlobalTableInfo;
 
 /**
  * 动态SQL表字段提取器
  * 用于从任意SQL建表语句中提取表名和字段信息
  */
 public class TableFieldExtractor {
-    
     /**
      * 表信息类
      */
@@ -75,7 +75,32 @@ public class TableFieldExtractor {
         List<FieldInfo> fields = extractFields(sql);
         tableInfo.setFields(fields);
         
+        // 设置全局变量
+        setGlobalVariables(tableInfo);
+        
         return tableInfo;
+    }
+    
+    /**
+     * 设置全局变量
+     * @param tableInfo 表信息
+     */
+    private static void setGlobalVariables(TableInfo tableInfo) {
+        GlobalTableInfo globalTableInfo = GlobalTableInfo.getInstance();
+        // 设置全局表名
+        globalTableInfo.tableName = tableInfo.getTableName();
+
+        // 设置全局字段名数组
+        globalTableInfo.fieldNames = new String[tableInfo.getFields().size()];
+        for (int i = 0; i < tableInfo.getFields().size(); i++) {
+            globalTableInfo.fieldNames[i] = tableInfo.getFields().get(i).getFieldName();
+        }
+
+        // 设置全局字段类型数组
+        globalTableInfo.fieldTypes = new String[tableInfo.getFields().size()];
+        for (int i = 0; i < tableInfo.getFields().size(); i++) {
+            globalTableInfo.fieldTypes[i] = tableInfo.getFields().get(i).getFieldType();
+        }
     }
     
     /**
