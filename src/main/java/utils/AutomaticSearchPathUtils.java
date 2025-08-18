@@ -22,6 +22,7 @@ public class AutomaticSearchPathUtils {
         TARGET_ALIASES.put("mapper", new String[]{"mapper", "dao"});
         TARGET_ALIASES.put("service", new String[]{"service", "services"});
         TARGET_ALIASES.put("controller", new String[]{"controller", "controllers"});
+        TARGET_ALIASES.put("impl", new String[]{"Impl"});
     }
 
     /**
@@ -43,6 +44,7 @@ public class AutomaticSearchPathUtils {
             globalInfo.mapperPackage = "";
             globalInfo.servicePackage = "";
             globalInfo.controllerPackage = "";
+            globalInfo.implPackage = "";
             return;
         }
 
@@ -51,6 +53,7 @@ public class AutomaticSearchPathUtils {
         globalInfo.mapperPackage = findBestPackageForCategory(srcDir, TARGET_ALIASES.get("mapper"));
         globalInfo.servicePackage = findBestPackageForCategory(srcDir, TARGET_ALIASES.get("service"));
         globalInfo.controllerPackage = findBestPackageForCategory(srcDir, TARGET_ALIASES.get("controller"));
+        globalInfo.implPackage = findBestPackageForCategory(srcDir, TARGET_ALIASES.get("impl"));
     }
 
     /**

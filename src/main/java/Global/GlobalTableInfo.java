@@ -20,6 +20,8 @@ public class GlobalTableInfo {
     public String controllerPackage;
     // Entity或Domain包名
     public String entityOrdomainPackage;
+    // Impl包名
+    public String implPackage;
     
 
     // 3. 私有构造，防止其他地方 new

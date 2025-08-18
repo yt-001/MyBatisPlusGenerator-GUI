@@ -30,6 +30,7 @@ public class FileConfigurationReadingUtils {
         props.setProperty("mapperPackage", globalInfo.mapperPackage != null ? globalInfo.mapperPackage : "");
         props.setProperty("servicePackage", globalInfo.servicePackage != null ? globalInfo.servicePackage : "");
         props.setProperty("controllerPackage", globalInfo.controllerPackage != null ? globalInfo.controllerPackage : "");
+        props.setProperty("implPackage", globalInfo.implPackage != null ? globalInfo.implPackage : "");
 
         // 使用try-with-resources语句确保流被正确关闭
         try (FileOutputStream fos = new FileOutputStream(CONFIG_FILE_NAME)) {
@@ -66,6 +67,7 @@ public class FileConfigurationReadingUtils {
             globalInfo.mapperPackage = props.getProperty("mapperPackage", "");
             globalInfo.servicePackage = props.getProperty("servicePackage", "");
             globalInfo.controllerPackage = props.getProperty("controllerPackage", "");
+            globalInfo.implPackage = props.getProperty("implPackage", "");
 
             System.out.println("配置已从 " + configFile.getAbsolutePath() + " 加载。");
         } catch (IOException e) {

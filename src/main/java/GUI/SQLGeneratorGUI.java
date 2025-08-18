@@ -17,30 +17,32 @@ public class SQLGeneratorGUI extends JFrame {
     private JButton generateButton;
     private JButton smartMatchButton;
     private JButton saveConfigButton;
-    
+
     public SQLGeneratorGUI() {
         initializeComponents();
         setupLayout();
         setupEventHandlers();
     }
-    
+
     private JTextField projectPathField;
     private JTextField entityPathField;
     private JTextField mapperPathField;
     private JTextField servicePathField;
     private JTextField controllerPathField;
+    private JTextField implPathField; // 新增
     private JButton projectBrowseButton;
     private JButton entityBrowseButton;
     private JButton mapperBrowseButton;
     private JButton serviceBrowseButton;
     private JButton controllerBrowseButton;
-    
+    private JButton implBrowseButton; // 新增
+
     private void initializeComponents() {
         setTitle("MyBatis Plus 代码生成器");
-        setSize(900, 800);  // 增加高度以容纳日志区域
+        setSize(900, 870);  // 增加高度以容纳日志区域
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
-        
+
         // 创建SQL输入区域
         sqlInputArea = new JTextArea();
         // 使用支持中文的字体
@@ -52,22 +54,22 @@ public class SQLGeneratorGUI extends JFrame {
         sqlInputArea.setLineWrap(true);
         sqlInputArea.setWrapStyleWord(true);
         sqlInputArea.setText("-- 请在此输入SQL建表语句\n-- 例如：\n-- CREATE TABLE user (\n--     id BIGINT PRIMARY KEY AUTO_INCREMENT,\n--     name VARCHAR(50) NOT NULL,\n--     email VARCHAR(100)\n-- );");
-        
+
         // 创建生成按钮
         generateButton = new JButton("生成代码");
         generateButton.setFont(new Font("Microsoft YaHei", Font.PLAIN, 14));
         generateButton.setPreferredSize(new Dimension(120, 35));
-        
+
         // 创建智能匹配按钮
         smartMatchButton = new JButton("智能匹配");
         smartMatchButton.setFont(new Font("Microsoft YaHei", Font.PLAIN, 14));
         smartMatchButton.setPreferredSize(new Dimension(120, 35));
-        
+
         // 创建保存配置文件按钮
         saveConfigButton = new JButton("保存配置文件");
         saveConfigButton.setFont(new Font("Microsoft YaHei", Font.PLAIN, 14));
         saveConfigButton.setPreferredSize(new Dimension(140, 35));
-        
+
         // 创建右侧路径配置组件
         initializePathComponents();
 
@@ -78,48 +80,55 @@ public class SQLGeneratorGUI extends JFrame {
         logOutputArea.setLineWrap(true);
         logOutputArea.setWrapStyleWord(true);
     }
-    
+
     private void initializePathComponents() {
         Font labelFont = new Font("Microsoft YaHei", Font.PLAIN, 12);
         Font fieldFont = new Font("Microsoft YaHei", Font.PLAIN, 11);
         Font buttonFont = new Font("Microsoft YaHei", Font.PLAIN, 10);
-        
+
         projectPathField = new JTextField();
         projectPathField.setFont(fieldFont);
         projectPathField.setText("C:/Users/DELL/Desktop/MyBatisPlusGenerator");
         projectBrowseButton = new JButton("...");
         projectBrowseButton.setFont(buttonFont);
         projectBrowseButton.setPreferredSize(new Dimension(30, 25));
-        
+
         entityPathField = new JTextField();
         entityPathField.setFont(fieldFont);
         entityPathField.setText("src/main/java/entity");
         entityBrowseButton = new JButton("...");
         entityBrowseButton.setFont(buttonFont);
         entityBrowseButton.setPreferredSize(new Dimension(30, 25));
-        
+
         mapperPathField = new JTextField();
         mapperPathField.setFont(fieldFont);
         mapperPathField.setText("src/main/java/mapper");
         mapperBrowseButton = new JButton("...");
         mapperBrowseButton.setFont(buttonFont);
         mapperBrowseButton.setPreferredSize(new Dimension(30, 25));
-        
+
         servicePathField = new JTextField();
         servicePathField.setFont(fieldFont);
         servicePathField.setText("src/main/java/service");
         serviceBrowseButton = new JButton("...");
         serviceBrowseButton.setFont(buttonFont);
         serviceBrowseButton.setPreferredSize(new Dimension(30, 25));
-        
+
         controllerPathField = new JTextField();
         controllerPathField.setFont(fieldFont);
         controllerPathField.setText("src/main/java/controller");
         controllerBrowseButton = new JButton("...");
         controllerBrowseButton.setFont(buttonFont);
         controllerBrowseButton.setPreferredSize(new Dimension(30, 25));
+
+        implPathField = new JTextField(); // 新增
+        implPathField.setFont(fieldFont);
+        implPathField.setText("src/main/java/service/impl");
+        implBrowseButton = new JButton("..."); // 新增
+        implBrowseButton.setFont(buttonFont);
+        implBrowseButton.setPreferredSize(new Dimension(30, 25));
     }
-    
+
     private void setupLayout() {
         setLayout(new BorderLayout());
 
@@ -168,7 +177,7 @@ public class SQLGeneratorGUI extends JFrame {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBorder(BorderFactory.createTitledBorder("代码生成路径配置"));
-        panel.setPreferredSize(new Dimension(450, 420));
+        panel.setPreferredSize(new Dimension(450, 480)); // 增加高度
 
         Font labelFont = new Font("Microsoft YaHei", Font.PLAIN, 12);
 
@@ -178,7 +187,7 @@ public class SQLGeneratorGUI extends JFrame {
         topButtonPanel.add(saveConfigButton);
         topButtonPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(topButtonPanel);
-        
+
         panel.add(Box.createVerticalStrut(10));
         JLabel projectLabel = new JLabel("项目路径:");
         projectLabel.setFont(labelFont);
@@ -190,7 +199,7 @@ public class SQLGeneratorGUI extends JFrame {
         projectPanel.add(projectBrowseButton, BorderLayout.EAST);
         projectPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(projectPanel);
-        
+
         panel.add(Box.createVerticalStrut(15));
         JLabel entityLabel = new JLabel("Entity实体类路径:");
         entityLabel.setFont(labelFont);
@@ -202,7 +211,7 @@ public class SQLGeneratorGUI extends JFrame {
         entityPanel.add(entityBrowseButton, BorderLayout.EAST);
         entityPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(entityPanel);
-        
+
         panel.add(Box.createVerticalStrut(15));
         JLabel mapperLabel = new JLabel("Mapper接口路径:");
         mapperLabel.setFont(labelFont);
@@ -214,7 +223,7 @@ public class SQLGeneratorGUI extends JFrame {
         mapperPanel.add(mapperBrowseButton, BorderLayout.EAST);
         mapperPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(mapperPanel);
-        
+
         panel.add(Box.createVerticalStrut(15));
         JLabel serviceLabel = new JLabel("Service服务类路径:");
         serviceLabel.setFont(labelFont);
@@ -226,7 +235,19 @@ public class SQLGeneratorGUI extends JFrame {
         servicePanel.add(serviceBrowseButton, BorderLayout.EAST);
         servicePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(servicePanel);
-        
+
+        panel.add(Box.createVerticalStrut(15));
+        JLabel implLabel = new JLabel("Impl实现类路径:"); // 新增
+        implLabel.setFont(labelFont);
+        implLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(implLabel);
+        panel.add(Box.createVerticalStrut(5));
+        JPanel implPanel = new JPanel(new BorderLayout(5, 0)); // 新增
+        implPanel.add(implPathField, BorderLayout.CENTER);
+        implPanel.add(implBrowseButton, BorderLayout.EAST);
+        implPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(implPanel);
+
         panel.add(Box.createVerticalStrut(15));
         JLabel controllerLabel = new JLabel("Controller控制器路径:");
         controllerLabel.setFont(labelFont);
@@ -238,12 +259,12 @@ public class SQLGeneratorGUI extends JFrame {
         controllerPanel.add(controllerBrowseButton, BorderLayout.EAST);
         controllerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(controllerPanel);
-        
+
         panel.add(Box.createVerticalGlue());
-        
+
         return panel;
     }
-    
+
     private void setupEventHandlers() {
         generateButton.addActionListener(e -> generateCode());
         smartMatchButton.addActionListener(e -> smartMatchAndUpdateUI());
@@ -281,6 +302,7 @@ public class SQLGeneratorGUI extends JFrame {
         updatePathFieldFromPackage(entityPathField, globalInfo.entityOrdomainPackage, "Entity/Domain");
         updatePathFieldFromPackage(mapperPathField, globalInfo.mapperPackage, "Mapper");
         updatePathFieldFromPackage(servicePathField, globalInfo.servicePackage, "Service");
+        updatePathFieldFromPackage(implPathField, globalInfo.implPackage, "Impl"); // 新增
         updatePathFieldFromPackage(controllerPathField, globalInfo.controllerPackage, "Controller");
         System.out.println("=== 智能匹配完成 ===");
         JOptionPane.showMessageDialog(this, "路径匹配完成！全局配置已更新。", "成功", JOptionPane.INFORMATION_MESSAGE);
@@ -295,6 +317,7 @@ public class SQLGeneratorGUI extends JFrame {
         System.out.println("Entity/Domain包: " + (globalInfo.entityOrdomainPackage != null && !globalInfo.entityOrdomainPackage.isEmpty() ? globalInfo.entityOrdomainPackage : "未找到"));
         System.out.println("Mapper包: " + (globalInfo.mapperPackage != null && !globalInfo.mapperPackage.isEmpty() ? globalInfo.mapperPackage : "未找到"));
         System.out.println("Service包: " + (globalInfo.servicePackage != null && !globalInfo.servicePackage.isEmpty() ? globalInfo.servicePackage : "未找到"));
+        System.out.println("Impl包: " + (globalInfo.implPackage != null && !globalInfo.implPackage.isEmpty() ? globalInfo.implPackage : "未找到")); // 新增
         System.out.println("Controller包: " + (globalInfo.controllerPackage != null && !globalInfo.controllerPackage.isEmpty() ? globalInfo.controllerPackage : "未找到"));
         System.out.println("==========================================");
         JOptionPane.showMessageDialog(this, "配置已保存到文件并打印到控制台。", "配置已保存", JOptionPane.INFORMATION_MESSAGE);
@@ -320,6 +343,7 @@ public class SQLGeneratorGUI extends JFrame {
         globalInfo.entityOrdomainPackage = convertPathToPackage(entityPathField.getText().trim());
         globalInfo.mapperPackage = convertPathToPackage(mapperPathField.getText().trim());
         globalInfo.servicePackage = convertPathToPackage(servicePathField.getText().trim());
+        globalInfo.implPackage = convertPathToPackage(implPathField.getText().trim()); // 新增
         globalInfo.controllerPackage = convertPathToPackage(controllerPathField.getText().trim());
     }
 
@@ -335,44 +359,45 @@ public class SQLGeneratorGUI extends JFrame {
         }
         return packagePath.replace('/', '.');
     }
-    
+
     private void setupBrowseButtonEvents() {
         projectBrowseButton.addActionListener(e -> selectFolder(projectPathField, true, "选择项目根目录"));
         entityBrowseButton.addActionListener(e -> selectFolder(entityPathField, false, "选择Entity实体类路径"));
         mapperBrowseButton.addActionListener(e -> selectFolder(mapperPathField, false, "选择Mapper接口路径"));
         serviceBrowseButton.addActionListener(e -> selectFolder(servicePathField, false, "选择Service服务类路径"));
+        implBrowseButton.addActionListener(e -> selectFolder(implPathField, false, "选择Impl实现类路径")); // 新增
         controllerBrowseButton.addActionListener(e -> selectFolder(controllerPathField, false, "选择Controller控制器路径"));
     }
-    
+
     private void selectFolder(JTextField pathField, boolean isProjectPath, String title) {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         fileChooser.setDialogTitle(title);
         fileChooser.setApproveButtonText("打开");
         fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
-        
+
         String currentPath;
         if (isProjectPath) {
             currentPath = pathField.getText();
         } else {
             currentPath = projectPathField.getText() + "/" + pathField.getText();
         }
-        
+
         java.io.File currentDir = new java.io.File(currentPath);
         if (currentDir.exists()) {
             fileChooser.setCurrentDirectory(currentDir);
         }
-        
+
         int result = fileChooser.showOpenDialog(SQLGeneratorGUI.this);
         if (result == JFileChooser.APPROVE_OPTION) {
             java.io.File selectedFile = fileChooser.getSelectedFile();
-            
+
             if (isProjectPath) {
                 pathField.setText(selectedFile.getAbsolutePath());
             } else {
                 String selectedPath = selectedFile.getAbsolutePath();
                 String projectPath = projectPathField.getText();
-                
+
                 if (selectedPath.startsWith(projectPath)) {
                     String relativePath = selectedPath.substring(projectPath.length());
                     if (relativePath.startsWith("\\") || relativePath.startsWith("/")) {
@@ -385,13 +410,14 @@ public class SQLGeneratorGUI extends JFrame {
             }
         }
     }
-    
+
     private void updateUIFromGlobalConfig() {
         GlobalTableInfo globalInfo = GlobalTableInfo.getInstance();
         projectPathField.setText(globalInfo.projectPath != null ? globalInfo.projectPath : "");
         updatePathFieldFromPackage(entityPathField, globalInfo.entityOrdomainPackage, "Entity/Domain");
         updatePathFieldFromPackage(mapperPathField, globalInfo.mapperPackage, "Mapper");
         updatePathFieldFromPackage(servicePathField, globalInfo.servicePackage, "Service");
+        updatePathFieldFromPackage(implPathField, globalInfo.implPackage, "Impl"); // 新增
         updatePathFieldFromPackage(controllerPathField, globalInfo.controllerPackage, "Controller");
     }
 
@@ -400,13 +426,13 @@ public class SQLGeneratorGUI extends JFrame {
         System.setProperty("sun.jnu.encoding", "UTF-8");
 
         FileConfigurationReadingUtils.loadConfiguration();
-        
+
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
+
         SwingUtilities.invokeLater(() -> {
             SQLGeneratorGUI gui = new SQLGeneratorGUI();
             gui.updateUIFromGlobalConfig();
