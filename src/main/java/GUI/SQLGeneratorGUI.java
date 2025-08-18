@@ -278,14 +278,74 @@ public class SQLGeneratorGUI extends JFrame {
             JOptionPane.showMessageDialog(this, "请输入有效的SQL建表语句！", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        
+        // 更新全局配置
         updateGlobalInfoFromPaths();
+        
         try {
-            System.out.println("=== 开始解析SQL ===");
+            System.out.println("=== 开始代码生成流程 ===");
+            
+            // 1. 先执行字段解析
+            System.out.println("=== 步骤1: 解析SQL ===");
             TableFieldExtractor.TableInfo tableInfo = TableFieldExtractor.parseSql(sqlContent);
             TableFieldExtractor.printCoreInfo(tableInfo);
-            JOptionPane.showMessageDialog(this, "SQL解析成功！\n表名: " + tableInfo.getTableName() + "\n字段数: " + tableInfo.getFields().size(), "解析成功", JOptionPane.INFORMATION_MESSAGE);
+            
+            // 2. 执行字段处理（类型转换已在printCoreInfo中完成）
+            System.out.println("\n=== 步骤2: 处理字段命名 ===");
+            utils.FieldProcessorUtils.processGlobalTableInfo();
+            
+            // 3. 执行所有生成器
+            System.out.println("\n=== 步骤3: 生成代码模板 ===");
+            GlobalTableInfo globalInfo = GlobalTableInfo.getInstance();
+            
+            // 生成 Entity
+            System.out.println("\n--- 生成 Entity 实体类 ---");
+            Generator.entityGenerator entityGen = new Generator.entityGenerator();
+            entityGen.generateEntityTemplate(globalInfo);
+            
+            // 生成 Mapper
+            System.out.println("\n--- 生成 Mapper 接口 ---");
+            Generator.MapperGenerator mapperGen = new Generator.MapperGenerator();
+            mapperGen.generateMapperTemplate(globalInfo);
+            
+            // 生成 Service 和 ServiceImpl
+            System.out.println("\n--- 生成 Service 接口和实现类 ---");
+            Generator.ServiceGenerator serviceGen = new Generator.ServiceGenerator();
+            serviceGen.generateServiceAndImplTemplates(globalInfo);
+            
+            // 生成 Controller
+            System.out.println("\n--- 生成 Controller 控制器 ---");
+            Generator.ControllerGenerator controllerGen = new Generator.ControllerGenerator();
+            controllerGen.generateControllerTemplate(globalInfo);
+            
+            System.out.println("\n=== 代码生成完成 ===");
+            
+            // 询问是否写入文件
+            int choice = JOptionPane.showConfirmDialog(this, 
+                "代码生成完成！\n表名: " + tableInfo.getTableName() + 
+                "\n字段数: " + tableInfo.getFields().size() + 
+                "\n已生成: Entity, Mapper, Service, ServiceImpl, Controller" +
+                "\n\n是否要将代码写入到文件？", 
+                "写入文件", 
+                JOptionPane.YES_NO_OPTION);
+
+            if (choice == JOptionPane.YES_OPTION) {
+                try {
+                    System.out.println("\n=== 开始写入代码文件 ===");
+                    Generator.CodeFileWriter.writeAllCodeFiles(globalInfo);
+                    JOptionPane.showMessageDialog(this, "代码文件写入完成！", "成功", JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception fileEx) {
+                    System.out.println("错误：写入文件时发生异常：" + fileEx.getMessage());
+                    JOptionPane.showMessageDialog(this, "写入文件时发生错误：" + fileEx.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+                    fileEx.printStackTrace();
+                }
+            } else {
+                JOptionPane.showMessageDialog(this, "代码生成完成！仅在控制台显示。", "完成", JOptionPane.INFORMATION_MESSAGE);
+            }
+                
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "处理SQL时发生错误：" + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            System.out.println("错误：代码生成过程中发生异常：" + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "代码生成时发生错误：" + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }

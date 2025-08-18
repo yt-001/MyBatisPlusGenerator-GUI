@@ -41,10 +41,29 @@ public class entityGenerator {
     }
 
     /**
-     * 生成 Entity 类的代码模板。
+     * 生成 Entity 类的代码内容（用于文件写入）
+     * @param tableInfo 包含所有路径和表信息的全局配置实例。
+     * @return 生成的 Entity 代码字符串
+     */
+    public String generateEntityContent(GlobalTableInfo tableInfo) {
+        return buildEntityCode(tableInfo);
+    }
+
+    /**
+     * 生成 Entity 类的代码模板（用于控制台打印）
      * @param tableInfo 包含所有路径和表信息的全局配置实例。
      */
     public void generateEntityTemplate(GlobalTableInfo tableInfo) {
+        String content = buildEntityCode(tableInfo);
+        System.out.println("Entity 实体类代码生成完毕");
+    }
+
+    /**
+     * 构建 Entity 类的代码
+     * @param tableInfo 包含所有路径和表信息的全局配置实例。
+     * @return 生成的代码字符串
+     */
+    private String buildEntityCode(GlobalTableInfo tableInfo) {
         // 1. 从全局配置中获取所需信息
         String tableName = tableInfo.tableName;
         String entityOrdomainPackage = tableInfo.entityOrdomainPackage;
@@ -57,7 +76,7 @@ public class entityGenerator {
             fieldNames == null || fieldNames.length == 0 ||
             fieldTypes == null || fieldTypes.length != fieldNames.length) {
             System.out.println("错误：生成Entity所需的一个或多个关键信息（表名、包路径、字段名、字段类型）未在GlobalTableInfo中正确设置。");
-            return;
+            return null;
         }
 
         // 3. 根据表名派生出实体类名
@@ -71,6 +90,7 @@ public class entityGenerator {
         entityBuilder.append("import com.baomidou.mybatisplus.annotation.TableId;\n");
         entityBuilder.append("import com.baomidou.mybatisplus.annotation.TableField;\n");
         entityBuilder.append("import java.io.Serializable;\n");
+        entityBuilder.append("import java.time.LocalDateTime;\n");
         entityBuilder.append("import lombok.Getter;\n");
         entityBuilder.append("import lombok.Setter;\n");
         entityBuilder.append("import lombok.ToString;\n");
@@ -105,8 +125,6 @@ public class entityGenerator {
 
         entityBuilder.append("}\n");
 
-        // 6. 将生成的模板打印到控制台
-        System.out.println("\n--- Generated Entity Class Template ---");
-        System.out.println(entityBuilder.toString());
+        return entityBuilder.toString();
     }
 }

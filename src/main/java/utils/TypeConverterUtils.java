@@ -219,8 +219,8 @@ public class TypeConverterUtils {
         // 测试GlobalTableInfo处理
         System.out.println("\n=== GlobalTableInfo处理测试 ===");
         GlobalTableInfo instance = GlobalTableInfo.getInstance();
-        instance.fieldTypes = new String[]{"BIGINT", "VARCHAR(50)", "DATETIME", "TINYINT(1)"};
-        
+        instance.fieldTypes = new String[]{"bigint", "bigint", "varchar(50)", "varchar(255)", "int", "tinyint", "datetime", "datetime"};
+
         System.out.println("处理前:");
         for (String type : instance.fieldTypes) {
             System.out.println("  " + type);
