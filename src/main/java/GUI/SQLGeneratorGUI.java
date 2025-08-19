@@ -277,12 +277,8 @@ public class SQLGeneratorGUI extends JFrame {
             TableFieldExtractor.TableInfo tableInfo = TableFieldExtractor.parseSql(sqlContent);
             TableFieldExtractor.printCoreInfo(tableInfo);
             
-            // 2. 执行字段处理（类型转换已在printCoreInfo中完成）
-            System.out.println("\n=== 步骤2: 处理字段命名 ===");
-            utils.FieldProcessorUtils.processGlobalTableInfo();
-            
-            // 3. 执行所有生成器
-            System.out.println("\n=== 步骤3: 生成代码模板 ===");
+            // 2. 执行所有生成器
+            System.out.println("\n=== 步骤2: 生成代码模板 ===");
             GlobalTableInfo globalInfo = GlobalTableInfo.getInstance();
             
             // 生成 Entity

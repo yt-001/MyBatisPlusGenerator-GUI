@@ -101,6 +101,13 @@ public class TableFieldExtractor {
         for (int i = 0; i < tableInfo.getFields().size(); i++) {
             globalTableInfo.fieldTypes[i] = tableInfo.getFields().get(i).getFieldType();
         }
+
+        // 设置全局字段注释数组
+        globalTableInfo.fieldAnnotations = new String[tableInfo.getFields().size()];
+        for (int i = 0; i < tableInfo.getFields().size(); i++) {
+            String comment = tableInfo.getFields().get(i).getComment();
+            globalTableInfo.fieldAnnotations[i] = (comment != null && !comment.trim().isEmpty()) ? comment : "";
+        }
     }
     
     /**
@@ -184,7 +191,7 @@ public class TableFieldExtractor {
     }
     
     /**
-     * 解析单行字段定义
+     * 解析单行字段定义 - 增强版注释提取
      */
     private static FieldInfo parseFieldLine(String line) {
         // 移除末尾的逗号
@@ -196,9 +203,18 @@ public class TableFieldExtractor {
             return null;
         }
         
-        // 基本字段匹配 - 匹配字段名和数据类型
+        // 增强的字段匹配正则表达式，支持多种注释格式
+        // 支持格式：
+        // 1. COMMENT '注释内容'
+        // 2. COMMENT "注释内容"
+        // 3. COMMENT `注释内容`
+        // 4. comment='注释内容'
+        // 5. comment="注释内容"
         Pattern pattern = Pattern.compile(
-            "^\\s*([\\w_]+)\\s+([\\w()]+)(?:\\s+.*?)?(?:\\s+comment\\s+'([^']*)')?",
+            "^\\s*([\\w_]+)\\s+([\\w()]+(?:\\s+unsigned)?)" +  // 字段名和类型（支持unsigned）
+            "(?:\\s+.*?)?" +                                    // 中间的约束条件（可选）
+            "(?:\\s+comment\\s*[=\\s]*['\"`]([^'\"`]*)['\"`])?" + // 注释部分（支持多种引号）
+            ".*$",
             Pattern.CASE_INSENSITIVE
         );
         
@@ -213,11 +229,47 @@ public class TableFieldExtractor {
                 // 清理字段类型，移除多余的关键字
                 fieldType = cleanFieldType(fieldType);
                 
-                return new FieldInfo(fieldName, fieldType, comment != null ? comment : "");
+                // 如果没有通过正则匹配到注释，尝试其他方式提取
+                if (comment == null || comment.trim().isEmpty()) {
+                    comment = extractCommentFromLine(line);
+                }
+                
+                return new FieldInfo(fieldName, fieldType, comment != null ? comment.trim() : "");
             }
         }
         
         return null;
+    }
+    
+    /**
+     * 从字段定义行中提取注释的辅助方法
+     * 处理各种复杂的注释格式
+     */
+    private static String extractCommentFromLine(String line) {
+        // 尝试多种注释提取模式
+        String[] commentPatterns = {
+            "comment\\s*=\\s*'([^']*)'",           // comment='注释'
+            "comment\\s*=\\s*\"([^\"]*)\"",       // comment="注释"
+            "comment\\s*=\\s*`([^`]*)`",          // comment=`注释`
+            "comment\\s+'([^']*)'",               // comment '注释'
+            "comment\\s+\"([^\"]*)\"",            // comment "注释"
+            "comment\\s+`([^`]*)`",               // comment `注释`
+            "comment\\s*:\\s*'([^']*)'",          // comment: '注释'
+            "comment\\s*:\\s*\"([^\"]*)\"",       // comment: "注释"
+        };
+        
+        for (String patternStr : commentPatterns) {
+            Pattern pattern = Pattern.compile(patternStr, Pattern.CASE_INSENSITIVE);
+            Matcher matcher = pattern.matcher(line);
+            if (matcher.find()) {
+                String comment = matcher.group(1);
+                if (comment != null && !comment.trim().isEmpty()) {
+                    return comment.trim();
+                }
+            }
+        }
+        
+        return "";
     }
     
     /**
@@ -293,6 +345,17 @@ public class TableFieldExtractor {
             fieldTypes[i] = tableInfo.getFields().get(i).getFieldType();
         }
         return fieldTypes;
+    }
+    
+    /**
+     * 获取字段注释数组
+     */
+    public static String[] getFieldComments(TableInfo tableInfo) {
+        String[] fieldComments = new String[tableInfo.getFields().size()];
+        for (int i = 0; i < tableInfo.getFields().size(); i++) {
+            fieldComments[i] = tableInfo.getFields().get(i).getComment();
+        }
+        return fieldComments;
     }
     
     /**

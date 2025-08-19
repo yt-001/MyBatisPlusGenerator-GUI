@@ -7,38 +7,11 @@ import utils.TypeConverterUtils;
 import static utils.FieldProcessorUtils.capitalizeFirstLetter;
 import static utils.FieldProcessorUtils.toCamelCase;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Entity 实体类代码生成器。
  * 根据 GlobalTableInfo 中的配置生成相应的模板。
  */
 public class entityGenerator {
-
-    private static final Map<String, String> DB_TYPE_TO_JAVA_TYPE = new HashMap<>();
-
-    static {
-        // 常见数据库类型到Java类型的映射
-        DB_TYPE_TO_JAVA_TYPE.put("VARCHAR", "String");
-        DB_TYPE_TO_JAVA_TYPE.put("CHAR", "String");
-        DB_TYPE_TO_JAVA_TYPE.put("TEXT", "String");
-        DB_TYPE_TO_JAVA_TYPE.put("INT", "Integer");
-        DB_TYPE_TO_JAVA_TYPE.put("INTEGER", "Integer");
-        DB_TYPE_TO_JAVA_TYPE.put("BIGINT", "Long");
-        DB_TYPE_TO_JAVA_TYPE.put("SMALLINT", "Short");
-        DB_TYPE_TO_JAVA_TYPE.put("TINYINT", "Byte");
-        DB_TYPE_TO_JAVA_TYPE.put("FLOAT", "Float");
-        DB_TYPE_TO_JAVA_TYPE.put("DOUBLE", "Double");
-        DB_TYPE_TO_JAVA_TYPE.put("DECIMAL", "java.math.BigDecimal");
-        DB_TYPE_TO_JAVA_TYPE.put("NUMERIC", "java.math.BigDecimal");
-        DB_TYPE_TO_JAVA_TYPE.put("DATE", "java.util.Date");
-        DB_TYPE_TO_JAVA_TYPE.put("TIME", "java.util.Date");
-        DB_TYPE_TO_JAVA_TYPE.put("DATETIME", "java.util.Date");
-        DB_TYPE_TO_JAVA_TYPE.put("TIMESTAMP", "java.util.Date");
-        DB_TYPE_TO_JAVA_TYPE.put("BOOLEAN", "Boolean");
-        DB_TYPE_TO_JAVA_TYPE.put("BIT", "Boolean");
-    }
 
     /**
      * 生成 Entity 类的代码内容（用于文件写入）
@@ -69,6 +42,7 @@ public class entityGenerator {
         String entityOrdomainPackage = tableInfo.entityOrdomainPackage;
         String[] fieldNames = tableInfo.fieldNames;
         String[] fieldTypes = tableInfo.fieldTypes;
+        String[] fieldAnnotations = tableInfo.fieldAnnotations;
 
         // 2. 检查关键信息是否缺失
         if (tableName == null || tableName.trim().isEmpty() ||
@@ -89,6 +63,8 @@ public class entityGenerator {
         entityBuilder.append("import com.baomidou.mybatisplus.annotation.IdType;\n");
         entityBuilder.append("import com.baomidou.mybatisplus.annotation.TableId;\n");
         entityBuilder.append("import com.baomidou.mybatisplus.annotation.TableField;\n");
+        entityBuilder.append("\n"); 
+        entityBuilder.append("import java.io.Serial;\n");
         entityBuilder.append("import java.io.Serializable;\n");
         entityBuilder.append("import java.time.LocalDateTime;\n");
         entityBuilder.append("import lombok.Getter;\n");
@@ -104,6 +80,7 @@ public class entityGenerator {
         entityBuilder.append("@AllArgsConstructor\n");
         entityBuilder.append(String.format("@TableName(\"%s\")\n", tableName));
         entityBuilder.append(String.format("public class %s implements Serializable {\n\n", entityName));
+        entityBuilder.append("    @Serial\n");
         entityBuilder.append("    private static final long serialVersionUID = 1L;\n\n");
 
         // 5. 生成字段
@@ -113,6 +90,14 @@ public class entityGenerator {
             String javaFieldName = toCamelCase(dbFieldName);
             // 使用 TypeConverterUtils 进行类型转换
             String javaFieldType = TypeConverterUtils.convertToJavaType(dbFieldType);
+
+            // 添加字段注释（如果存在）
+            if (fieldAnnotations != null && i < fieldAnnotations.length && 
+                fieldAnnotations[i] != null && !fieldAnnotations[i].trim().isEmpty()) {
+                entityBuilder.append(String.format("    /**\n"));
+                entityBuilder.append(String.format("     * %s\n", fieldAnnotations[i]));
+                entityBuilder.append(String.format("     */\n"));
+            }
 
             // 假设第一个字段是主键
             if (i == 0) {

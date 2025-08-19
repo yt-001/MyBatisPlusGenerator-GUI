@@ -9,6 +9,7 @@ public class GlobalTableInfo {
     public String tableName;
     public String[] fieldNames;
     public String[] fieldTypes;
+    public String[] fieldAnnotations;
 
     // Project项目路径
     public String projectPath;
