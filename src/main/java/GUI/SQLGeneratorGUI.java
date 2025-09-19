@@ -369,11 +369,105 @@ public class SQLGeneratorGUI extends JFrame {
     private void updatePathFieldFromPackage(JTextField field, String packageName, String type) {
         if (packageName != null && !packageName.isEmpty()) {
             String relativePath = "src/main/java/" + packageName.replace('.', '/');
-            field.setText(relativePath);
-            System.out.println("更新 " + type + " 路径: " + relativePath);
+            
+            // 检查路径是否存在
+            String projectPath = projectPathField.getText().trim();
+            if (!projectPath.isEmpty()) {
+                File fullPath = new File(projectPath, relativePath);
+                
+                if (!fullPath.exists()) {
+                    // 路径不存在，询问用户是否创建
+                    int choice = JOptionPane.showConfirmDialog(this, 
+                        "包路径不存在：" + relativePath + " 是否要创建该包路径？",
+                        "创建包路径", 
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.QUESTION_MESSAGE);
+                    
+                    if (choice == JOptionPane.YES_OPTION) {
+                        try {
+                            // 创建目录
+                            boolean created = fullPath.mkdirs();
+                            if (created) {
+                                field.setText(relativePath);
+                                System.out.println("已创建并更新 " + type + " 路径: " + relativePath);
+                            } else {
+                                System.out.println("创建 " + type + " 路径失败: " + relativePath);
+                                JOptionPane.showMessageDialog(this, 
+                                    "创建包路径失败：" + relativePath, 
+                                    "创建失败", 
+                                    JOptionPane.ERROR_MESSAGE);
+                                field.setText("");
+                            }
+                        } catch (Exception e) {
+                            System.out.println("创建 " + type + " 路径时发生异常: " + e.getMessage());
+                            JOptionPane.showMessageDialog(this, 
+                                "创建包路径时发生错误：" + e.getMessage(), 
+                                "创建失败", 
+                                JOptionPane.ERROR_MESSAGE);
+                            field.setText("");
+                        }
+                    } else {
+                        // 用户选择不创建，清空字段
+                        field.setText("");
+                        System.out.println("用户选择不创建 " + type + " 路径，UI字段已清空。");
+                    }
+                } else {
+                    // 路径存在，正常设置
+                    field.setText(relativePath);
+                    System.out.println("更新 " + type + " 路径: " + relativePath);
+                }
+            } else {
+                // 项目路径为空，无法检查，直接设置
+                field.setText(relativePath);
+                System.out.println("更新 " + type + " 路径: " + relativePath + " (未验证存在性，项目路径为空)");
+            }
         } else {
-            field.setText("");
-            System.out.println("未找到 " + type + " 的路径，UI字段已清空。");
+            // 没有找到包名，询问用户是否要创建一个默认的包路径
+            String projectPath = projectPathField.getText().trim();
+            if (!projectPath.isEmpty()) {
+                String defaultPackageName = getDefaultPackageName(type);
+                String defaultRelativePath = "src/main/java/" + defaultPackageName;
+                
+                int choice = JOptionPane.showConfirmDialog(this, 
+                    "未找到 " + type + " 包路径。 是否要创建默认的包路径：" + defaultRelativePath + "？",
+                    "创建默认包路径", 
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE);
+                
+                if (choice == JOptionPane.YES_OPTION) {
+                    File fullPath = new File(projectPath, defaultRelativePath);
+                    try {
+                        boolean created = fullPath.mkdirs();
+                        if (created) {
+                            field.setText(defaultRelativePath);
+                            System.out.println("已创建并更新 " + type + " 默认路径: " + defaultRelativePath);
+                            
+                            // 同时更新全局配置中的包名
+                            updateGlobalPackageInfo(type, defaultPackageName);
+                        } else {
+                            System.out.println("创建 " + type + " 默认路径失败: " + defaultRelativePath);
+                            JOptionPane.showMessageDialog(this, 
+                                "创建默认包路径失败：" + defaultRelativePath, 
+                                "创建失败", 
+                                JOptionPane.ERROR_MESSAGE);
+                            field.setText("");
+                        }
+                    } catch (Exception e) {
+                        System.out.println("创建 " + type + " 默认路径时发生异常: " + e.getMessage());
+                        JOptionPane.showMessageDialog(this, 
+                            "创建默认包路径时发生错误：" + e.getMessage(), 
+                            "创建失败", 
+                            JOptionPane.ERROR_MESSAGE);
+                        field.setText("");
+                    }
+                } else {
+                    field.setText("");
+                    System.out.println("用户选择不创建 " + type + " 默认路径，UI字段已清空。");
+                }
+            } else {
+                field.setText("");
+                System.out.println("未找到 " + type + " 的路径，且项目路径为空，UI字段已清空。");
+            }
         }
     }
 
@@ -462,6 +556,52 @@ public class SQLGeneratorGUI extends JFrame {
         updatePathFieldFromPackage(servicePathField, globalInfo.servicePackage, "Service");
         updatePathFieldFromPackage(implPathField, globalInfo.implPackage, "Impl");
         updatePathFieldFromPackage(controllerPathField, globalInfo.controllerPackage, "Controller");
+    }
+
+    /**
+     * 获取默认包名
+     */
+    private String getDefaultPackageName(String type) {
+        switch (type.toLowerCase()) {
+            case "entity/domain":
+            case "entity":
+                return "domain/entity";  // 先创建domain包，再创建entity子包
+            case "mapper":
+                return "mapper";
+            case "service":
+                return "service";
+            case "impl":
+                return "service/impl";   // 先创建service包，再创建impl子包
+            case "controller":
+                return "controller";
+            default:
+                return type.toLowerCase();
+        }
+    }
+    
+    /**
+     * 更新全局配置中的包信息
+     */
+    private void updateGlobalPackageInfo(String type, String packageName) {
+        GlobalTableInfo globalInfo = GlobalTableInfo.getInstance();
+        switch (type.toLowerCase()) {
+            case "entity/domain":
+            case "entity":
+                globalInfo.entityOrdomainPackage = packageName;
+                break;
+            case "mapper":
+                globalInfo.mapperPackage = packageName;
+                break;
+            case "service":
+                globalInfo.servicePackage = packageName;
+                break;
+            case "impl":
+                globalInfo.implPackage = packageName;
+                break;
+            case "controller":
+                globalInfo.controllerPackage = packageName;
+                break;
+        }
     }
 
     public static void main(String[] args) {
