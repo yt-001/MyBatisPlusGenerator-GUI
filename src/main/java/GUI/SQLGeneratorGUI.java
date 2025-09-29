@@ -36,6 +36,8 @@ public class SQLGeneratorGUI extends JFrame {
     private JButton serviceBrowseButton;
     private JButton controllerBrowseButton;
     private JButton implBrowseButton;
+    // 控制是否允许弹出“创建包路径”提示，默认在启动阶段关闭，点击按钮时再开启
+    private boolean allowCreatePrompt = false;
 
     private void initializeComponents() {
         setTitle("MyBatis Plus 代码生成器");
@@ -268,6 +270,15 @@ public class SQLGeneratorGUI extends JFrame {
         
         // 更新全局配置
         updateGlobalInfoFromPaths();
+
+        // 仅在点击生成代码时，允许按需创建包并更新UI路径
+        this.allowCreatePrompt = true;
+        GlobalTableInfo tmpInfoForPathEnsure = GlobalTableInfo.getInstance();
+        updatePathFieldFromPackage(entityPathField, tmpInfoForPathEnsure.entityOrdomainPackage, "Entity/Domain");
+        updatePathFieldFromPackage(mapperPathField, tmpInfoForPathEnsure.mapperPackage, "Mapper");
+        updatePathFieldFromPackage(servicePathField, tmpInfoForPathEnsure.servicePackage, "Service");
+        updatePathFieldFromPackage(implPathField, tmpInfoForPathEnsure.implPackage, "Impl");
+        updatePathFieldFromPackage(controllerPathField, tmpInfoForPathEnsure.controllerPackage, "Controller");
         
         try {
             System.out.println("=== 开始代码生成流程 ===");
@@ -335,6 +346,8 @@ public class SQLGeneratorGUI extends JFrame {
 
     private void smartMatchAndUpdateUI() {
         String projectPath = projectPathField.getText().trim();
+        // 点击智能匹配时才允许提示创建包
+        this.allowCreatePrompt = true;
         if (projectPath.isEmpty()) {
             JOptionPane.showMessageDialog(this, "请先设置项目路径！", "提示", JOptionPane.WARNING_MESSAGE);
             return;
@@ -369,104 +382,87 @@ public class SQLGeneratorGUI extends JFrame {
     private void updatePathFieldFromPackage(JTextField field, String packageName, String type) {
         if (packageName != null && !packageName.isEmpty()) {
             String relativePath = "src/main/java/" + packageName.replace('.', '/');
-            
-            // 检查路径是否存在
-            String projectPath = projectPathField.getText().trim();
-            if (!projectPath.isEmpty()) {
-                File fullPath = new File(projectPath, relativePath);
-                
-                if (!fullPath.exists()) {
-                    // 路径不存在，询问用户是否创建
-                    int choice = JOptionPane.showConfirmDialog(this, 
+            File fullPath = new File(projectPathField.getText().trim(), relativePath);
+
+            // 路径存在，直接设置
+            if (fullPath.exists()) {
+                field.setText(relativePath);
+                System.out.println("更新 " + type + " 路径: " + relativePath);
+                return;
+            }
+
+            // 路径不存在，走创建逻辑
+            if (allowCreatePrompt) {
+                int choice = JOptionPane.showConfirmDialog(this,
                         "包路径不存在：" + relativePath + " 是否要创建该包路径？",
-                        "创建包路径", 
+                        "创建包路径",
                         JOptionPane.YES_NO_OPTION,
                         JOptionPane.QUESTION_MESSAGE);
-                    
-                    if (choice == JOptionPane.YES_OPTION) {
-                        try {
-                            // 创建目录
-                            boolean created = fullPath.mkdirs();
-                            if (created) {
-                                field.setText(relativePath);
-                                System.out.println("已创建并更新 " + type + " 路径: " + relativePath);
-                            } else {
-                                System.out.println("创建 " + type + " 路径失败: " + relativePath);
-                                JOptionPane.showMessageDialog(this, 
-                                    "创建包路径失败：" + relativePath, 
-                                    "创建失败", 
-                                    JOptionPane.ERROR_MESSAGE);
-                                field.setText("");
-                            }
-                        } catch (Exception e) {
-                            System.out.println("创建 " + type + " 路径时发生异常: " + e.getMessage());
-                            JOptionPane.showMessageDialog(this, 
-                                "创建包路径时发生错误：" + e.getMessage(), 
-                                "创建失败", 
-                                JOptionPane.ERROR_MESSAGE);
-                            field.setText("");
-                        }
+
+                if (choice == JOptionPane.YES_OPTION) {
+                    if (fullPath.mkdirs()) {
+                        field.setText(relativePath);
+                        System.out.println("已创建并更新 " + type + " 路径: " + relativePath);
                     } else {
-                        // 用户选择不创建，清空字段
+                        JOptionPane.showMessageDialog(this, "创建包路径失败：" + relativePath, "创建失败", JOptionPane.ERROR_MESSAGE);
                         field.setText("");
-                        System.out.println("用户选择不创建 " + type + " 路径，UI字段已清空。");
                     }
                 } else {
-                    // 路径存在，正常设置
-                    field.setText(relativePath);
-                    System.out.println("更新 " + type + " 路径: " + relativePath);
+                    field.setText(""); // 用户取消创建
                 }
             } else {
-                // 项目路径为空，无法检查，直接设置
-                field.setText(relativePath);
-                System.out.println("更新 " + type + " 路径: " + relativePath + " (未验证存在性，项目路径为空)");
+                // 静默模式下，路径不存在则清空
+                field.setText("");
             }
         } else {
-            // 没有找到包名，询问用户是否要创建一个默认的包路径
+            // 未找到匹配的包，走创建默认包的逻辑
             String projectPath = projectPathField.getText().trim();
-            if (!projectPath.isEmpty()) {
-                String defaultPackageName = getDefaultPackageName(type);
-                String defaultRelativePath = "src/main/java/" + defaultPackageName;
-                
-                int choice = JOptionPane.showConfirmDialog(this, 
-                    "未找到 " + type + " 包路径。 是否要创建默认的包路径：" + defaultRelativePath + "？",
-                    "创建默认包路径", 
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.QUESTION_MESSAGE);
-                
+            if (projectPath.isEmpty()) {
+                field.setText("");
+                System.out.println("未找到 " + type + " 的路径，且项目路径为空。");
+                return;
+            }
+
+            if (allowCreatePrompt) {
+                // 动态构建默认路径
+                File srcJavaDir = new File(projectPath, "src/main/java");
+                String basePackage = AutomaticSearchPathUtils.findBasePackage(srcJavaDir.toPath());
+                String typeSpecificPath = getDefaultPackageName(type); // e.g., "entity" or "service/impl"
+
+                String finalRelativePath;
+                String finalPackageName;
+
+                if (basePackage != null && !basePackage.isEmpty()) {
+                    String basePackageAsPath = basePackage.replace('.', '/');
+                    finalRelativePath = "src/main/java/" + basePackageAsPath + "/" + typeSpecificPath;
+                    finalPackageName = basePackage + "." + typeSpecificPath.replace('/', '.');
+                } else {
+                    finalRelativePath = "src/main/java/" + typeSpecificPath;
+                    finalPackageName = typeSpecificPath.replace('/', '.');
+                }
+
+                int choice = JOptionPane.showConfirmDialog(this,
+                        "未找到 " + type + " 包路径。是否要创建默认路径？ " + finalRelativePath,
+                        "创建默认包路径",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.QUESTION_MESSAGE);
+
                 if (choice == JOptionPane.YES_OPTION) {
-                    File fullPath = new File(projectPath, defaultRelativePath);
-                    try {
-                        boolean created = fullPath.mkdirs();
-                        if (created) {
-                            field.setText(defaultRelativePath);
-                            System.out.println("已创建并更新 " + type + " 默认路径: " + defaultRelativePath);
-                            
-                            // 同时更新全局配置中的包名
-                            updateGlobalPackageInfo(type, defaultPackageName);
-                        } else {
-                            System.out.println("创建 " + type + " 默认路径失败: " + defaultRelativePath);
-                            JOptionPane.showMessageDialog(this, 
-                                "创建默认包路径失败：" + defaultRelativePath, 
-                                "创建失败", 
-                                JOptionPane.ERROR_MESSAGE);
-                            field.setText("");
-                        }
-                    } catch (Exception e) {
-                        System.out.println("创建 " + type + " 默认路径时发生异常: " + e.getMessage());
-                        JOptionPane.showMessageDialog(this, 
-                            "创建默认包路径时发生错误：" + e.getMessage(), 
-                            "创建失败", 
-                            JOptionPane.ERROR_MESSAGE);
+                    File fullPath = new File(projectPath, finalRelativePath);
+                    if (fullPath.mkdirs()) {
+                        field.setText(finalRelativePath);
+                        System.out.println("已创建并更新 " + type + " 默认路径: " + finalRelativePath);
+                        updateGlobalPackageInfo(type, finalPackageName);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "创建默认包路径失败：" + finalRelativePath, "创建失败", JOptionPane.ERROR_MESSAGE);
                         field.setText("");
                     }
                 } else {
-                    field.setText("");
-                    System.out.println("用户选择不创建 " + type + " 默认路径，UI字段已清空。");
+                    field.setText(""); // 用户取消创建
                 }
             } else {
+                // 静默模式下，未找到则清空
                 field.setText("");
-                System.out.println("未找到 " + type + " 的路径，且项目路径为空，UI字段已清空。");
             }
         }
     }
@@ -584,6 +580,12 @@ public class SQLGeneratorGUI extends JFrame {
      */
     private void updateGlobalPackageInfo(String type, String packageName) {
         GlobalTableInfo globalInfo = GlobalTableInfo.getInstance();
+        // 将路径风格的包名转换为点分风格，确保生成在 com/... 的正确包层级
+        if (packageName != null) {
+            packageName = packageName.replace('\\', '/').replace('/', '.');
+        } else {
+            packageName = "";
+        }
         switch (type.toLowerCase()) {
             case "entity/domain":
             case "entity":

@@ -3,121 +3,129 @@ package utils;
 import Global.GlobalTableInfo;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-/**
- * 自动搜索项目路径并直接更新全局配置的工具类。
- * 搜索逻辑按优先级进行：先搜索第一个别名，如果找到，则停止；否则，继续搜索下一个别名。
- */
 public class AutomaticSearchPathUtils {
 
-    // 定义标准名称到其别名列表的映射, 数组顺序代表优先级
-    private static final Map<String, String[]> TARGET_ALIASES = new HashMap<>();
-    static {
-        TARGET_ALIASES.put("entity", new String[]{"entity", "domain"});
-        TARGET_ALIASES.put("mapper", new String[]{"mapper", "dao"});
-        TARGET_ALIASES.put("service", new String[]{"service", "services"});
-        TARGET_ALIASES.put("controller", new String[]{"controller", "controllers"});
-        TARGET_ALIASES.put("impl", new String[]{"Impl"});
-    }
-
     /**
-     * 查找项目中的最佳路径，并将它们转换为包名，直接更新到GlobalTableInfo单例中。
-     *
-     * @param projectPath 项目的根路径。
+     * 查找并设置全局路径。
+     * 优先通过寻找 @SpringBootApplication 来确定基础包，然后在其下寻找标准子包。
+     * 如果失败，则回退到在 src/main/java 下直接寻找标准子包。
+     * @param projectPath 项目根路径
      */
     public static void findAndSetGlobalPaths(String projectPath) {
         GlobalTableInfo globalInfo = GlobalTableInfo.getInstance();
-        File projectDir = new File(projectPath);
-        File srcDir = new File(projectDir, "src");
+        globalInfo.projectPath = projectPath;
 
-        // 1. 设置项目绝对路径
-        globalInfo.projectPath = projectDir.getAbsolutePath();
-
-        if (!srcDir.exists() || !srcDir.isDirectory()) {
-            // 如果没有src目录，则所有包路径都为空
+        File srcJavaDir = new File(projectPath, "src/main/java");
+        if (!srcJavaDir.exists() || !srcJavaDir.isDirectory()) {
+            System.out.println("错误：在 " + projectPath + " 中未找到 'src/main/java' 目录。");
+            // Clear all paths
             globalInfo.entityOrdomainPackage = "";
             globalInfo.mapperPackage = "";
             globalInfo.servicePackage = "";
-            globalInfo.controllerPackage = "";
             globalInfo.implPackage = "";
+            globalInfo.controllerPackage = "";
             return;
         }
 
-        // 2. 按优先级为每个类别查找最佳包路径
-        globalInfo.entityOrdomainPackage = findBestPackageForCategory(srcDir, TARGET_ALIASES.get("entity"));
-        globalInfo.mapperPackage = findBestPackageForCategory(srcDir, TARGET_ALIASES.get("mapper"));
-        globalInfo.servicePackage = findBestPackageForCategory(srcDir, TARGET_ALIASES.get("service"));
-        globalInfo.controllerPackage = findBestPackageForCategory(srcDir, TARGET_ALIASES.get("controller"));
-        globalInfo.implPackage = findBestPackageForCategory(srcDir, TARGET_ALIASES.get("impl"));
-    }
+        String basePackage = findBasePackage(srcJavaDir.toPath());
+        String basePackagePath = basePackage != null ? basePackage.replace('.', '/') : null;
 
-    /**
-     * 按优先级顺序为单个类别（如 "mapper"）查找最佳包路径。
-     *
-     * @param searchRoot 搜索的根目录 (通常是 'src')。
-     * @param aliases    要搜索的别名数组，按优先级排序。
-     * @return 找到的最佳包名，如果未找到则返回空字符串。
-     */
-    private static String findBestPackageForCategory(File searchRoot, String[] aliases) {
-        for (String alias : aliases) {
-            List<String> foundPaths = new ArrayList<>();
-            findPathsForAlias(searchRoot, alias, foundPaths);
-
-            if (!foundPaths.isEmpty()) {
-                // 如果找到了一个或多个匹配项，选择最短的路径，转换并立即返回
-                String bestPath = foundPaths.stream().min(Comparator.comparingInt(String::length)).get();
-                return convertPathToPackage(bestPath);
+        if (basePackagePath != null) {
+            System.out.println("自动检测到基础包路径: " + basePackage);
+            // 在基础包下查找
+            globalInfo.entityOrdomainPackage = findSubPackage(srcJavaDir, basePackagePath, "entity", "domain");
+            globalInfo.mapperPackage = findSubPackage(srcJavaDir, basePackagePath, "mapper", "dao");
+            globalInfo.servicePackage = findSubPackage(srcJavaDir, basePackagePath, "service");
+            globalInfo.controllerPackage = findSubPackage(srcJavaDir, basePackagePath, "controller", "web");
+            // Impl is special, it's inside service
+            if (globalInfo.servicePackage != null && !globalInfo.servicePackage.isEmpty()) {
+                globalInfo.implPackage = findSubPackage(srcJavaDir, globalInfo.servicePackage.replace('.', '/'), "impl");
+            } else {
+                 globalInfo.implPackage = "";
             }
-        }
-        // 如果遍历完所有别名都没有找到，则返回空字符串
-        return "";
-    }
 
-    /**
-     * 递归地在目录中查找所有与单个别名匹配的文件夹。
-     *
-     * @param directory  当前搜索的目录。
-     * @param alias      要查找的别名。
-     * @param foundPaths 用于存储找到的路径的列表。
-     */
-    private static void findPathsForAlias(File directory, String alias, List<String> foundPaths) {
-        if (directory.getName().equalsIgnoreCase(alias)) {
-            foundPaths.add(directory.getAbsolutePath());
+        } else {
+            System.out.println("警告：未能自动检测到基础包路径。将在 src/main/java 下直接查找。");
+            // 回退逻辑：直接在 src/main/java 下查找
+            globalInfo.entityOrdomainPackage = findSubPackage(srcJavaDir, "", "entity", "domain");
+            globalInfo.mapperPackage = findSubPackage(srcJavaDir, "", "mapper", "dao");
+            globalInfo.servicePackage = findSubPackage(srcJavaDir, "", "service");
+            globalInfo.controllerPackage = findSubPackage(srcJavaDir, "", "controller", "web");
+            globalInfo.implPackage = findSubPackage(srcJavaDir, "", "service/impl");
         }
-
-        File[] files = directory.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory()) {
-                    String name = file.getName();
-                    // 跳过常见的非源码目录
-                    if (!name.equals(".git") && !name.equals("target") && !name.equals(".idea") && !name.equals("build") && !name.equals("node_modules")) {
-                        findPathsForAlias(file, alias, foundPaths);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * 将文件系统路径转换为Java包名。
-     */
-    private static String convertPathToPackage(String path) {
-        if (path == null || path.trim().isEmpty()) return "";
-        String packagePath = path.replace("\\", "/");
         
-        String[] prefixes = {"src/main/java/", "src/test/java/", "src/"};
-        for (String prefix : prefixes) {
-            if (packagePath.contains(prefix)) {
-                packagePath = packagePath.substring(packagePath.indexOf(prefix) + prefix.length());
-                break;
+        // 如果 service.impl 没找到，但 service 找到了，就组合一个
+        if (globalInfo.implPackage.isEmpty() && !globalInfo.servicePackage.isEmpty()) {
+            String potentialImplPackage = globalInfo.servicePackage + ".impl";
+            File implDir = new File(srcJavaDir, potentialImplPackage.replace('.', '/'));
+            if (implDir.exists() && implDir.isDirectory()) {
+                globalInfo.implPackage = potentialImplPackage;
             }
         }
-        return packagePath.replace('/', '.');
+
+
+        System.out.println("智能匹配到的包路径如下:");
+        System.out.println("  - Entity/Domain: " + (globalInfo.entityOrdomainPackage.isEmpty() ? "未找到" : globalInfo.entityOrdomainPackage));
+        System.out.println("  - Mapper: " + (globalInfo.mapperPackage.isEmpty() ? "未找到" : globalInfo.mapperPackage));
+        System.out.println("  - Service: " + (globalInfo.servicePackage.isEmpty() ? "未找到" : globalInfo.servicePackage));
+        System.out.println("  - Impl: " + (globalInfo.implPackage.isEmpty() ? "未找到" : globalInfo.implPackage));
+        System.out.println("  - Controller: " + (globalInfo.controllerPackage.isEmpty() ? "未找到" : globalInfo.controllerPackage));
+    }
+
+    /**
+     * 查找启动类来确定基础包路径。
+     * @param srcJavaPath src/main/java 的路径
+     * @return 基础包名，例如 com.example.demo, 如果找不到则返回 null
+     */
+    public static String findBasePackage(Path srcJavaPath) {
+        try {
+            List<Path> mainAppFiles = new ArrayList<>();
+            Files.walkFileTree(srcJavaPath, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (file.toString().endsWith("Application.java")) {
+                        String content = new String(Files.readAllBytes(file));
+                        if (content.contains("@SpringBootApplication")) {
+                            mainAppFiles.add(file);
+                        }
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+
+            if (!mainAppFiles.isEmpty()) {
+                // 通常只有一个启动类，取第一个
+                Path mainAppPath = mainAppFiles.get(0);
+                Path packagePath = srcJavaPath.relativize(mainAppPath.getParent());
+                return packagePath.toString().replace(File.separator, ".");
+            }
+        } catch (IOException e) {
+            System.out.println("错误：在查找基础包路径时发生IO异常：" + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 在基础路径下查找子包。
+     * @param srcJavaDir src/main/java 目录
+     * @param basePackagePath 基础包的路径形式 (e.g., "com/example/demo")
+     * @param aliases 子包的别名 (e.g., "entity", "domain")
+     * @return 找到的完整包名，找不到则返回空字符串
+     */
+    private static String findSubPackage(File srcJavaDir, String basePackagePath, String... aliases) {
+        for (String alias : aliases) {
+            String subPath = basePackagePath.isEmpty() ? alias : basePackagePath + "/" + alias;
+            File checkDir = new File(srcJavaDir, subPath);
+            if (checkDir.exists() && checkDir.isDirectory()) {
+                return subPath.replace('/', '.');
+            }
+        }
+        return "";
     }
 }

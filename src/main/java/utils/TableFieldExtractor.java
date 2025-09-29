@@ -62,22 +62,25 @@ public class TableFieldExtractor {
      */
     public static TableInfo parseSql(String sql) {
         TableInfo tableInfo = new TableInfo();
-        
-        // 提取表名
-        String tableName = extractTableName(sql);
+
+        // 先截取 create table … 到 ") comment '…' collate = utf8mb4_unicode_ci;" 的块
+        String tableBlock = extractCreateTableBlock(sql);
+
+        // 提取表名（仅在块内）
+        String tableName = extractTableName(tableBlock);
         tableInfo.setTableName(tableName);
-        
-        // 提取表注释
-        String tableComment = extractTableComment(sql);
+
+        // 提取表注释（仅在块内）
+        String tableComment = extractTableComment(tableBlock);
         tableInfo.setTableComment(tableComment);
-        
-        // 提取字段信息
-        List<FieldInfo> fields = extractFields(sql);
+
+        // 提取字段信息（仅在块内）
+        List<FieldInfo> fields = extractFields(tableBlock);
         tableInfo.setFields(fields);
-        
+
         // 设置全局变量
         setGlobalVariables(tableInfo);
-        
+
         return tableInfo;
     }
     
@@ -174,8 +177,8 @@ public class TableFieldExtractor {
                 continue;
             }
             
-            // 检测CREATE TABLE块结束（遇到以)结尾的行）
-            if (line.endsWith(");") || (line.equals(")") || line.matches("\\)\\s*comment.*"))) {
+            // 检测CREATE TABLE块结束：仅当遇到 “) comment ... collate = utf8mb4_unicode_ci;”
+            if (line.toLowerCase().matches("\\)\\s*comment\\s*['\"`][^'\"`]*['\"`]\\s*collate\\s*=\\s*utf8mb4_unicode_ci\\s*;?")) {
                 inCreateTableBlock = false;
                 continue;
             }
@@ -371,5 +374,36 @@ public class TableFieldExtractor {
             }
         }
         System.out.println("};");
+    }
+    
+    /**
+     * 提取 create table 代码块（从 "create table" 到 ") comment '…' collate = utf8mb4_unicode_ci;"）
+     * 若找不到结束标记，则抛出异常提示用户 SQL 有问题
+     */
+    private static String extractCreateTableBlock(String sql) {
+        if (sql == null) return "";
+        Pattern startPat = Pattern.compile("create\\s+table\\b", Pattern.CASE_INSENSITIVE);
+        Pattern endPat = Pattern.compile("\\)\\s*comment\\s*['\"`][^'\"`]*['\"`]\\s*collate\\s*=\\s*utf8mb4_unicode_ci\\s*;?", Pattern.CASE_INSENSITIVE);
+
+        Matcher sm = startPat.matcher(sql);
+        if (!sm.find()) {
+            throw new IllegalArgumentException("未检测到有效的 CREATE TABLE 语句，请检查粘贴的 SQL 表语句。");
+        }
+        int start = sm.start();
+
+        Matcher em = endPat.matcher(sql);
+        int end = -1;
+        while (em.find()) {
+            if (em.end() > start) { // 取第一个出现在起点之后的结束匹配
+                end = em.end();
+                break;
+            }
+        }
+
+        if (end == -1) {
+            throw new IllegalArgumentException("未检测到表定义的结束标记（\") comment '…' collate = utf8mb4_unicode_ci;\"）。请确认粘贴的 SQL 表语句完整且符合规范。");
+        }
+
+        return sql.substring(start, end);
     }
 }
