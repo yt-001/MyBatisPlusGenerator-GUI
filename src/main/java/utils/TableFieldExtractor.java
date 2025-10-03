@@ -377,33 +377,70 @@ public class TableFieldExtractor {
     }
     
     /**
-     * 提取 create table 代码块（从 "create table" 到 ") comment '…' collate = utf8mb4_unicode_ci;"）
-     * 若找不到结束标记，则抛出异常提示用户 SQL 有问题
+     * 提取 create table 代码块（从 "create table" 到语句结束的 ";")
+     * 通过匹配括号来定位主体的结束，然后找到语句的结束分号。
+     * 这个版本会简单地处理字符串中的括号，以提高准确性。
      */
     private static String extractCreateTableBlock(String sql) {
-        if (sql == null) return "";
-        Pattern startPat = Pattern.compile("create\\s+table\\b", Pattern.CASE_INSENSITIVE);
-        Pattern endPat = Pattern.compile("\\)\\s*comment\\s*['\"`][^'\"`]*['\"`]\\s*collate\\s*=\\s*utf8mb4_unicode_ci\\s*;?", Pattern.CASE_INSENSITIVE);
+        if (sql == null || sql.trim().isEmpty()) {
+            return "";
+        }
 
+        // 查找 "create table"
+        Pattern startPat = Pattern.compile("create\\s+table\\b", Pattern.CASE_INSENSITIVE);
         Matcher sm = startPat.matcher(sql);
         if (!sm.find()) {
             throw new IllegalArgumentException("未检测到有效的 CREATE TABLE 语句，请检查粘贴的 SQL 表语句。");
         }
         int start = sm.start();
 
-        Matcher em = endPat.matcher(sql);
-        int end = -1;
-        while (em.find()) {
-            if (em.end() > start) { // 取第一个出现在起点之后的结束匹配
-                end = em.end();
-                break;
+        // 从 "create table" 之后查找第一个 "("
+        int openParenIndex = sql.indexOf('(', start);
+        if (openParenIndex == -1) {
+            throw new IllegalArgumentException("CREATE TABLE 语句缺少定义字段的左括号 '('。");
+        }
+
+        int parenCount = 1;
+        int currentIndex = openParenIndex + 1;
+        boolean inString = false;
+        char stringQuote = 0;
+
+        // 寻找匹配的右括号, 忽略字符串中的括号
+        while (currentIndex < sql.length() && parenCount > 0) {
+            char c = sql.charAt(currentIndex);
+            char prevC = (currentIndex > 0) ? sql.charAt(currentIndex - 1) : '\0';
+
+            if (inString) {
+                if (c == stringQuote && prevC != '\\') { // 结束字符串
+                    inString = false;
+                }
+            } else {
+                if ((c == '\'' || c == '"' || c == '`') && prevC != '\\') { // 开始字符串
+                    inString = true;
+                    stringQuote = c;
+                } else if (c == '(') {
+                    parenCount++;
+                } else if (c == ')') {
+                    parenCount--;
+                }
             }
+            currentIndex++;
         }
 
-        if (end == -1) {
-            throw new IllegalArgumentException("未检测到表定义的结束标记（\") comment '…' collate = utf8mb4_unicode_ci;\"）。请确认粘贴的 SQL 表语句完整且符合规范。");
+        if (parenCount != 0) {
+            throw new IllegalArgumentException("CREATE TABLE 语句括号不匹配，请检查SQL是否完整。");
         }
 
-        return sql.substring(start, end);
+        // 此时 currentIndex 是匹配的右括号的下一个位置
+        // 从这个位置开始寻找第一个分号
+        int semicolonIndex = sql.indexOf(';', currentIndex - 1);
+
+        if (semicolonIndex == -1) {
+            // 如果找不到分号，则假定整个剩余的字符串都是 CREATE TABLE 语句的一部分
+            // 这可以兼容用户只粘贴了建表语句而没有带分号的情况
+            return sql.substring(start);
+        }
+
+        return sql.substring(start, semicolonIndex + 1);
     }
 }
